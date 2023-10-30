@@ -1,0 +1,7 @@
+Git commands for senior design:
+
+cd C:\Users\nirva\Desktop\finalDesignPressureCode
+git add FINALCODE
+git commit -m "<commit message>"
+git push
+
