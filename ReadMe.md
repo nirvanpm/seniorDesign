@@ -5,7 +5,7 @@
 
 cd C:\Users\nirva\Desktop\finalDesignPressureCode
 
-git add FINALCODE
+git add .
 
 git commit -m "<commit message>"
 
