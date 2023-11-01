@@ -1,42 +1,44 @@
-#include <AStar32U4.h>
-
+// LIBRARIES
+#include <AStar32U4.h> // library for the Pololu microcontroller
 #include <DS3231.h> // for RTC "RealTime Clock" (must add zipped library from Sketch>Include Library)
 #include <SPI.h> // for communication with MicroSD card adapter
 #include <SD.h> // additional tools for MicroSD read/write
+
+// MAKE RTC PIN
+DS3231 rtc(SDApin, SCLpin);
 
 // https://www.gammon.com.au/power
 // reference for saving power ^
 
 
-// pins
+// INPUT PINS
 const int baudRate = 115200; // baudrate for arduino readings <- how many bits/second
 const int pressure_pin = A0; // input from A0 port <- pressure input in bits
+const int temperature_pin = A1; // input from A1 port <- temperature input in bits
 const int SDApin = 2; // serial DATA pin 
 const int SCLpin = 3; // serial CLOCK pin
 const int microSDpin = 4; // microSD pin
 
 
 // TIME RECORDING INTERVAL SETUP
+// intervals
 const unsigned int period = 5000; // [ms], recording period
 const unsigned int span = 250; // [ms], time span of measurements
 const unsigned int numMeasures = 10; // number of data points before sleeping
 const unsigned int sleepTime = 10000; // [ms], gap between recording periods
-
+// average obtaining code
 const unsigned int weightLength = 20; // number of weights used in the weighted average (this happens within ~1ms)
 int weightPointer = 0;
 float weights[weightLength]; // float array of length weightLength
 
 // TIME LOGGING VARIABLES
-String dataString;
+String dataString; // this will be what is printed to SD card, will join time, temp, and pressure data
 unsigned long prevWriteMillis; // [milliseconds] time of previous write
 unsigned long totalSec = 0; // [sec] total time device has been on
 unsigned long uncoveredSec = 0; // [sec] total time radiello has been uncovered
 
-// MAKE RTC PIN
-DS3231 rtc(SDApin, SCLpin);
 
-
-// PRESSURE SENSOR SETUP AND CALIBRATION
+// PRESSURE and TEMPERATURE SENSOR SETUP AND CALIBRATION
 // bit range, voltage range
 // analogRead() takes voltage output from 0 to 5 from pressure sensor and returns bit value from 0-1023
 const int num_bits = 1023; //bits
