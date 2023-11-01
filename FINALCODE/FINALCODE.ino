@@ -10,7 +10,6 @@ DS3231 rtc(SDApin, SCLpin);
 // https://www.gammon.com.au/power
 // reference for saving power ^
 
-
 // INPUT PINS
 const int baudRate = 115200; // baudrate for arduino readings <- how many bits/second
 const int pressure_pin = A0; // input from A0 port <- pressure input in bits
@@ -18,7 +17,6 @@ const int temperature_pin = A1; // input from A1 port <- temperature input in bi
 const int SDApin = 2; // serial DATA pin 
 const int SCLpin = 3; // serial CLOCK pin
 const int microSDpin = 4; // microSD pin
-
 
 // TIME RECORDING INTERVAL SETUP
 // intervals
@@ -38,54 +36,55 @@ unsigned long totalSec = 0; // [sec] total time device has been on
 unsigned long uncoveredSec = 0; // [sec] total time radiello has been uncovered
 
 
-// PRESSURE and TEMPERATURE SENSOR SETUP AND CALIBRATION
-// bit range, voltage range
-// analogRead() takes voltage output from 0 to 5 from pressure sensor and returns bit value from 0-1023
-const int num_bits = 1023; //bits
-const int num_volt = 5; //volts
-// pressure sensor values
-const float v_min = 0.5; //volts
-const int p_min = 0; //psi
-const float v_max = 4.5; //volts
-const int p_max = 100; //psi
-const float p_atm = 14.7; //psi
+// PRESSURE SENSOR SETUP AND CALIBRATION
+// bit and volt range
+const int num_bits = 1023;  // bit range
+const int num_volt = 5;     // volt range
+
+// pressure sensor linear voltage range
+const float pressure_voltage_min = 0.5; //volts
+const float pressure_voltage_max = 4.5; //volts
+
+// pressure sensor minimum and maximum psi, atmospheric pressure
+const int pressure_min = 0;           //psi
+const int pressure_max = 100;         //psi
+const float pressure_atm = 14.7;      //psi
+float pressure_abs = 0;               //psi, this variable will change over time
+
 // calibrate number of bits at pressure min and max
-const float min_bits = num_bits * (v_min/num_volt);
-const float max_bits = num_bits * (v_max/num_volt);
-// establish variable to change over time
-float p_abs = 0;
+const float pressure_min_bits = num_bits * (pressure_voltage_min/num_volt);
+const float pressure_max_bits = num_bits * (pressure_voltage_max/num_volt);
 
 
-// initialize connection
+// SET UP LOOP, CONNECT TO SD CARD, INITIALIZE RTC
 void setup() {
-  // setup serial connection
+  
+  // INITIALIZE SERIAL CONNECTION
   Serial.begin(baudRate); // setup serial
 
-  // initialize rtc object
-  rtc.begin();
-  // set time and date
-  rtc.setDOW(SUNDAY);
-  rtc.setTime(20, 25, 0);
-  rtc.setDate(29, 10, 2023);
+  // INITIALIZE REAL TIME CLOCK
+  rtc.begin();                // starts rtc
+  rtc.setDOW(SUNDAY);         // sets day of week
+  rtc.setTime(20, 25, 0);     // sets time of day
+  rtc.setDate(29, 10, 2023);  // sets day of year
 
-  // set up sd card
-  Serial.print("Initializing SD card...");
-
-  // see if the card is present and can be initialized:
+  // INITIALIZE SD CARD
+  Serial.print("Initializing SD card...");  // show on serial monitor the microprocessor is looking for sd card existence
+  
+  // this loop checks to see if SD card exists, if card not present code won't start
   if (!SD.begin(microSDpin)) {
     Serial.println("Card failed, or not present");
-    // don't do anything more:
     while (1);
   }
   Serial.println("card initialized.");
 }
 
-// start recording
+// START RECORDING DATA
 void loop() {
-  // sleep between measures
-  unsigned long startMain = millis();
-  unsigned long endMain = startMain + period;
-  unsigned int numMeasured = 0;
+  unsigned long startMain = millis();               // starts counting
+  unsigned long endMain = startMain + period;       // establishes how long the recording period is
+  unsigned int numMeasured = 0;                     // counts number of discrete measurements
+  
   // begin measuring period
   // switch between time based (period) or measurement based (numMeasures)
   while (millis() < endMain){
@@ -98,9 +97,9 @@ void loop() {
       if(weightPointer < weightLength){
         // take pressure readings
         float p = analogRead(pressure_pin); // reads pressure from sensor
-        p = p_max * ((p-min_bits)/(max_bits-min_bits)); // convert bits to gauge pressure, assume linear relationship
-        p_abs = p_atm + p; // output absolute pressure, assume atm 14.7 psi
-        weights[weightPointer] = p_abs;
+        pressure = pressure_max * ((pressure-min_bits)/(max_bits-min_bits)); // convert bits to gauge pressure, assume linear relationship
+        pressure_abs = pressure_atm + pressure; // output absolute pressure, assume atm 14.7 psi
+        weights[weightPointer] = pressure_abs;
       }
       weightPointer++; //collect N data points, where N is weightlength
     }
@@ -111,33 +110,32 @@ void loop() {
     for (int i = 0; i < weightLength; i++) {
       sum += weights[i];
     }
-    p_abs = (float) sum / weightLength;
+    pressure_abs = (float) sum / weightLength;
 
-    // read out pressure readings, string to input to SD card
+    // STRING THAT CONCATENATES TIME AND PRESSURE DATA
     dataString = "";
     dataString += rtc.getDOWStr() + String(",");
     dataString += rtc.getDateStr() + String(",");
     dataString += rtc.getTimeStr() + String(", ");
     dataString += String("Pressure: ");
-    dataString += String(p_abs);
+    dataString += String(pressure_abs);
     dataString += String(" PSI");
 
-    
-    File dataFile;
-    dataFile = SD.open("datalog.txt", FILE_WRITE);
-    
+    // CONNECT TO SD CARD 
+    File dataFile;                                   // creates file datatype
+    dataFile = SD.open("datalog.txt", FILE_WRITE);   // opens datafile in arduino
+
+    // UPLOAD TO SD CARD
     if (dataFile){
-      Serial.print("Uploading: ");
-      Serial.print(dataString);
-      Serial.println(" now!");
-      dataFile.println(dataString);
-      dataFile.close();
-      Serial.println("Done!  :)");
+      Serial.print("Uploading: ");    // let's serial know it is running, can delete later
+      Serial.print(dataString);       // shows us what is being uploaded, can delete later
+      Serial.println(" now!");        // definitely can be deleted later
+      dataFile.println(dataString);   // prints the dataString to the SD card .txt file
+      dataFile.close();               // closes the SD card to stop writing on it
+      Serial.println("Done!  :)");    // lets user know upload complete
     } else{
-      Serial.println("Error uploading data!");
+      Serial.println("Error uploading data!"); // will print if failed upload
     }
-
-
 
     numMeasured++;
   }
