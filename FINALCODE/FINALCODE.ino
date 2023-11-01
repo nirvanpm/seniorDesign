@@ -3,6 +3,8 @@
 #include <DS3231.h> // for RTC "RealTime Clock" (must add zipped library from Sketch>Include Library)
 #include <SPI.h> // for communication with MicroSD card adapter
 #include <SD.h> // additional tools for MicroSD read/write
+#include <OneWire.h> // library for reading temperature input
+#include <DallasTemperature.h> // library for temperature sensor
 
 // MAKE RTC PIN
 DS3231 rtc(SDApin, SCLpin);
@@ -13,10 +15,18 @@ DS3231 rtc(SDApin, SCLpin);
 // INPUT PINS
 const int baudRate = 115200; // baudrate for arduino readings <- how many bits/second
 const int pressure_pin = A0; // input from A0 port <- pressure input in bits
-const int temperature_pin = A1; // input from A1 port <- temperature input in bits
 const int SDApin = 2; // serial DATA pin 
 const int SCLpin = 3; // serial CLOCK pin
 const int microSDpin = 4; // microSD pin
+
+// TEMPERATURE SENSOR SET UP
+// onewire and dallas temperature setup
+#define temperature_pin 1;           // data wire from temp sensor in port 1 on arduino
+OneWire oneWire(temperature_pin);    // set oneWire instance to communicate with any oneWire device
+DallasTemperature sensors(&oneWire); // pass oneWire reference to Dallas Temp
+// variables
+float celsius = 0;
+float farenheit = 0;
 
 // TIME RECORDING INTERVAL SETUP
 // intervals
@@ -34,7 +44,6 @@ String dataString; // this will be what is printed to SD card, will join time, t
 unsigned long prevWriteMillis; // [milliseconds] time of previous write
 unsigned long totalSec = 0; // [sec] total time device has been on
 unsigned long uncoveredSec = 0; // [sec] total time radiello has been uncovered
-
 
 // PRESSURE SENSOR SETUP AND CALIBRATION
 // bit and volt range
@@ -96,7 +105,7 @@ void loop() {
     while (millis() < end){
       if(weightPointer < weightLength){
         // take pressure readings
-        float p = analogRead(pressure_pin); // reads pressure from sensor
+        float pressure = analogRead(pressure_pin); // reads pressure from sensor
         pressure = pressure_max * ((pressure-min_bits)/(max_bits-min_bits)); // convert bits to gauge pressure, assume linear relationship
         pressure_abs = pressure_atm + pressure; // output absolute pressure, assume atm 14.7 psi
         weights[weightPointer] = pressure_abs;
@@ -112,14 +121,24 @@ void loop() {
     }
     pressure_abs = (float) sum / weightLength;
 
+    // GET TEMPERATURE READINGS
+    sensors.requestTemperatures();            // initializes connection to temp sensor, and obtains data in array
+    celsius = sensors.getTempCByIndex(0);     // obtains celsius temp recording from sensors
+    farenheit = sensors.toFarenheit(celsius); // convert celsius to farenheit
+
     // STRING THAT CONCATENATES TIME AND PRESSURE DATA
     dataString = "";
     dataString += rtc.getDOWStr() + String(",");
     dataString += rtc.getDateStr() + String(",");
     dataString += rtc.getTimeStr() + String(", ");
-    dataString += String("Pressure: ");
+    dataString += String("Pressure [PSI]: ");
     dataString += String(pressure_abs);
-    dataString += String(" PSI");
+    dataString += String(", ");
+    dataString += String("Temperature [C]: ");
+    dataString += String(celsius);
+    dataString += String(", ");
+    dataString += String("Temperature [F]: ");
+    dataString += String(farenheit);
 
     // CONNECT TO SD CARD 
     File dataFile;                                   // creates file datatype
